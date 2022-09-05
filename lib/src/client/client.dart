@@ -66,6 +66,10 @@ class AwsS3Client {
     return _doSignedHeadRequest(key: key);
   }
 
+  void testFork() async {
+    print("OK");
+  }
+
   String keytoPath(String key) =>
       "${'/$key'.split('/').map(Uri.encodeQueryComponent).join('/')}";
 
