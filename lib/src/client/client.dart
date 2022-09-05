@@ -151,6 +151,8 @@ $payload''';
         'Authorization': authorization,
         'x-amz-content-sha256': payload,
         'x-amz-date': datetime,
+        'Content-Type': 'text/plain',
+        'Content-Length': body.toString().length.toString(),
       },
       body: body,
     );
