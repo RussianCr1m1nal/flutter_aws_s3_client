@@ -11,6 +11,7 @@ dependencies:
   built_collection: "^5.0.0"
   xml2json : ^5.0.0
   http: ^0.13.0
+  mime: ^1.0.2
 dev_dependencies:
   built_value_generator: "^8.0.0"
   build_runner: ^1.10.0

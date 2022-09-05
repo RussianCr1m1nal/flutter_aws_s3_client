@@ -5,6 +5,7 @@ import 'package:amazon_cognito_identity_dart_2/sig_v4.dart';
 import 'package:built_value/serializer.dart';
 import 'package:flutter_aws_s3_client/src/client/exceptions.dart';
 import 'package:http/http.dart';
+import 'package:mime/mime.dart';
 import 'package:xml2json/xml2json.dart';
 
 import '../model/list_bucket_result.dart';
@@ -65,7 +66,7 @@ class AwsS3Client {
     return _doSignedHeadRequest(key: key);
   }
 
-  Future<Response> putObject(String key, dynamic body) async {
+  Future<Response> putObject(String key, File body) async {
     return await _doSignedPutRequest(key: key, body: body);
   }
 
@@ -114,11 +115,11 @@ $payload''';
   Future<SignedRequestParams> buildSignedPutParams({
     required String key,
     Map<String, String>? queryParams,
-    required dynamic body,
+    required File body,
   }) async {
     final unencodedPath = "$_bucketId/$key";
     final uri = Uri.https(_host, unencodedPath, queryParams);
-    final payload = SigV4.hashCanonicalRequest(body.toString());
+    final payload = SigV4.hexEncode(await body.readAsBytes());
     final datetime = SigV4.generateDatetime();
     final credentialScope = SigV4.buildCredentialScope(datetime, _region, _service);
 
@@ -151,10 +152,10 @@ $payload''';
         'Authorization': authorization,
         'x-amz-content-sha256': payload,
         'x-amz-date': datetime,
-        'Content-Type': 'text/plain',
-        'Content-Length': body.toString().length.toString(),
+        'Content-Type': lookupMimeType(body.path) ?? '',
+        'Content-Length': (await body.length()).toString(),
       },
-      body: body,
+      body: await body.readAsBytes(),
     );
   }
 
@@ -176,7 +177,7 @@ $payload''';
 
   Future<Response> _doSignedPutRequest({
     required String key,
-    required dynamic body,
+    required File body,
     Map<String, String>? queryParams,
   }) async {
     final SignedRequestParams params = await buildSignedPutParams(key: key, queryParams: queryParams, body: body);
