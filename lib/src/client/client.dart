@@ -65,8 +65,8 @@ class AwsS3Client {
     return _doSignedHeadRequest(key: key);
   }
 
-  Future<Response> putObject(String key, File file) async {
-    return await _doSignedPutRequest(key: key, file: file);
+  Future<Response> putObject(String key, dynamic body) async {
+    return await _doSignedPutRequest(key: key, body: body);
   }
 
   String keytoPath(String key) => "${'/$key'.split('/').map(Uri.encodeQueryComponent).join('/')}";
@@ -114,7 +114,7 @@ $payload''';
   Future<SignedRequestParams> buildSignedPutParams({
     required String key,
     Map<String, String>? queryParams,
-    required File file,
+    required dynamic body,
   }) async {
     final unencodedPath = "$_bucketId/$key";
     final uri = Uri.https(_host, unencodedPath, queryParams);
@@ -152,7 +152,7 @@ $payload''';
         'x-amz-content-sha256': payload,
         'x-amz-date': datetime,
       },
-      body: await file.readAsBytes(),
+      body: body,
     );
   }
 
@@ -174,10 +174,10 @@ $payload''';
 
   Future<Response> _doSignedPutRequest({
     required String key,
-    required File file,
+    required dynamic body,
     Map<String, String>? queryParams,
   }) async {
-    final SignedRequestParams params = await buildSignedPutParams(key: key, queryParams: queryParams, file: file);
+    final SignedRequestParams params = await buildSignedPutParams(key: key, queryParams: queryParams, body: body);
     return _client.put(params.uri, headers: params.headers, body: params.body);
   }
 
