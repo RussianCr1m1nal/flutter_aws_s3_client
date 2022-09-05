@@ -8,6 +8,11 @@ import 'package:http/http.dart';
 import 'package:mime/mime.dart';
 import 'package:xml2json/xml2json.dart';
 
+import 'dart:convert';
+
+import 'package:convert/convert.dart';
+import 'package:crypto/crypto.dart';
+
 import '../model/list_bucket_result.dart';
 import '../model/list_bucket_result_parker.dart';
 
@@ -119,7 +124,7 @@ $payload''';
   }) async {
     final unencodedPath = "$_bucketId/$key";
     final uri = Uri.https(_host, unencodedPath, queryParams);
-    final payload = SigV4.hashCanonicalRequest(await body.readAsString());
+    final payload = SigV4.hashCanonicalRequest(SigV4.hash(await body.readAsBytes()).toString());
     final datetime = SigV4.generateDatetime();
     final credentialScope = SigV4.buildCredentialScope(datetime, _region, _service);
 
