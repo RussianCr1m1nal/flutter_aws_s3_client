@@ -123,7 +123,7 @@ $payload''';
     final credentialScope = SigV4.buildCredentialScope(datetime, _region, _service);
 
     final canonicalQuery = SigV4.buildCanonicalQueryString(queryParams);
-    final canonicalRequest = '''GET
+    final canonicalRequest = '''PUT
 ${'/$unencodedPath'.split('/').map(Uri.encodeComponent).join('/')}
 $canonicalQuery
 host:$_host
