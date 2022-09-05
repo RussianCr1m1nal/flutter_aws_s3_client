@@ -124,7 +124,7 @@ $payload''';
   }) async {
     final unencodedPath = "$_bucketId/$key";
     final uri = Uri.https(_host, unencodedPath, queryParams);
-    final payload = SigV4.hashCanonicalRequest(SigV4.hash(await body.readAsBytes()).toString());
+    final payload = SigV4.hexEncode((body.readAsBytesSync()));
     final datetime = SigV4.generateDatetime();
     final credentialScope = SigV4.buildCredentialScope(datetime, _region, _service);
 
