@@ -46,8 +46,7 @@ class AwsS3Client {
         _sessionToken = sessionToken,
         _client = client ?? Client();
 
-  Future<ListBucketResult?> listObjects(
-      {String? prefix, String? delimiter, int? maxKeys}) async {
+  Future<ListBucketResult?> listObjects({String? prefix, String? delimiter, int? maxKeys}) async {
     final response = await _doSignedGetRequest(key: '', queryParams: {
       "list-type": "2",
       if (prefix != null) "prefix": prefix,
@@ -66,24 +65,21 @@ class AwsS3Client {
     return _doSignedHeadRequest(key: key);
   }
 
-  void testFork() async {
-    print("OK");
+  Future<Response> putObject(String key, File file) async {
+    return await _doSignedPutRequest(key: key, file: file);
   }
 
-  String keytoPath(String key) =>
-      "${'/$key'.split('/').map(Uri.encodeQueryComponent).join('/')}";
+  String keytoPath(String key) => "${'/$key'.split('/').map(Uri.encodeQueryComponent).join('/')}";
 
   ///Returns a [SignedRequestParams] object containing the uri and the HTTP headers
   ///needed to do a signed GET request to AWS S3. Does not actually execute a request.
   ///You can use this method to integrate this client with an HTTP client of your choice.
-  SignedRequestParams buildSignedGetParams(
-      {required String key, Map<String, String>? queryParams}) {
+  SignedRequestParams buildSignedGetParams({required String key, Map<String, String>? queryParams}) {
     final unencodedPath = "$_bucketId/$key";
     final uri = Uri.https(_host, unencodedPath, queryParams);
     final payload = SigV4.hashCanonicalRequest('');
     final datetime = SigV4.generateDatetime();
-    final credentialScope =
-        SigV4.buildCredentialScope(datetime, _region, _service);
+    final credentialScope = SigV4.buildCredentialScope(datetime, _region, _service);
 
     final canonicalQuery = SigV4.buildCanonicalQueryString(queryParams);
     final canonicalRequest = '''GET
@@ -97,10 +93,9 @@ x-amz-security-token:${_sessionToken ?? ""}
 host;x-amz-content-sha256;x-amz-date;x-amz-security-token
 $payload''';
 
-    final stringToSign = SigV4.buildStringToSign(datetime, credentialScope,
-        SigV4.hashCanonicalRequest(canonicalRequest));
-    final signingKey =
-        SigV4.calculateSigningKey(_secretKey, datetime, _region, _service);
+    final stringToSign =
+        SigV4.buildStringToSign(datetime, credentialScope, SigV4.hashCanonicalRequest(canonicalRequest));
+    final signingKey = SigV4.calculateSigningKey(_secretKey, datetime, _region, _service);
     final signature = SigV4.calculateSignature(signingKey, stringToSign);
 
     final authorization = [
@@ -116,12 +111,56 @@ $payload''';
     });
   }
 
+  Future<SignedRequestParams> buildSignedPutParams({
+    required String key,
+    Map<String, String>? queryParams,
+    required File file,
+  }) async {
+    final unencodedPath = "$_bucketId/$key";
+    final uri = Uri.https(_host, unencodedPath, queryParams);
+    final payload = SigV4.hashCanonicalRequest('');
+    final datetime = SigV4.generateDatetime();
+    final credentialScope = SigV4.buildCredentialScope(datetime, _region, _service);
+
+    final canonicalQuery = SigV4.buildCanonicalQueryString(queryParams);
+    final canonicalRequest = '''GET
+${'/$unencodedPath'.split('/').map(Uri.encodeComponent).join('/')}
+$canonicalQuery
+host:$_host
+x-amz-content-sha256:$payload
+x-amz-date:$datetime
+x-amz-security-token:${_sessionToken ?? ""}
+
+host;x-amz-content-sha256;x-amz-date;x-amz-security-token
+$payload''';
+
+    final stringToSign =
+        SigV4.buildStringToSign(datetime, credentialScope, SigV4.hashCanonicalRequest(canonicalRequest));
+    final signingKey = SigV4.calculateSigningKey(_secretKey, datetime, _region, _service);
+    final signature = SigV4.calculateSignature(signingKey, stringToSign);
+
+    final authorization = [
+      'AWS4-HMAC-SHA256 Credential=$_accessKey/$credentialScope',
+      'SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-security-token',
+      'Signature=$signature',
+    ].join(',');
+
+    return SignedRequestParams(
+      uri,
+      {
+        'Authorization': authorization,
+        'x-amz-content-sha256': payload,
+        'x-amz-date': datetime,
+      },
+      body: await file.readAsBytes(),
+    );
+  }
+
   Future<Response> _doSignedGetRequest({
     required String key,
     Map<String, String>? queryParams,
   }) async {
-    final SignedRequestParams params =
-        buildSignedGetParams(key: key, queryParams: queryParams);
+    final SignedRequestParams params = buildSignedGetParams(key: key, queryParams: queryParams);
     return _client.get(params.uri, headers: params.headers);
   }
 
@@ -129,9 +168,17 @@ $payload''';
     required String key,
     Map<String, String>? queryParams,
   }) async {
-    final SignedRequestParams params =
-        buildSignedGetParams(key: key, queryParams: queryParams);
+    final SignedRequestParams params = buildSignedGetParams(key: key, queryParams: queryParams);
     return _client.head(params.uri, headers: params.headers);
+  }
+
+  Future<Response> _doSignedPutRequest({
+    required String key,
+    required File file,
+    Map<String, String>? queryParams,
+  }) async {
+    final SignedRequestParams params = await buildSignedPutParams(key: key, queryParams: queryParams, file: file);
+    return _client.put(params.uri, headers: params.headers, body: params.body);
   }
 
   void _checkResponseError(Response response) {
@@ -150,8 +197,9 @@ $payload''';
 class SignedRequestParams {
   final Uri uri;
   final Map<String, String> headers;
+  final dynamic body;
 
-  const SignedRequestParams(this.uri, this.headers);
+  const SignedRequestParams(this.uri, this.headers, {this.body});
 }
 
 /// aws s3 list bucket response string -> [ListBucketResult] object,
@@ -164,8 +212,7 @@ ListBucketResult? _parseListObjectResponse(String responseXml) {
   String jsonString = myTransformer.toParker();
   //parse json to src.model objects
   try {
-    ListBucketResult? parsedObj =
-        ListBucketResultParker.fromJson(jsonString).result;
+    ListBucketResult? parsedObj = ListBucketResultParker.fromJson(jsonString).result;
 
     return parsedObj;
   } on DeserializationError {
@@ -173,8 +220,7 @@ ListBucketResult? _parseListObjectResponse(String responseXml) {
     //issue due to json/xml transform: Lists with 1 element are transformed to json objects instead of lists
     final fixedJson = json.decode(jsonString);
 
-    fixedJson["ListBucketResult"]
-        ["Contents"] = [fixedJson["ListBucketResult"]["Contents"]];
+    fixedJson["ListBucketResult"]["Contents"] = [fixedJson["ListBucketResult"]["Contents"]];
 
     return ListBucketResultParker.fromJsonMap(fixedJson).result;
   }
